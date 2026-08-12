@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Обработка тикетов поддержки — демонстрация</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%235b8cff'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #171a23;
+      --surface-2: #1e222d;
+      --border: #2a2f3d;
+      --text: #e6e8ee;
+      --text-dim: #9aa1b1;
+      --accent: #5b8cff;
+      --accent-hover: #4a7bf0;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --error: #f85149;
+      --radius: 10px;
+      --gap: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 32px 20px 64px;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
+    }
+
+    .wrap { max-width: 940px; margin: 0 auto; }
+
+    header { margin-bottom: 28px; }
+
+    h1 { margin: 0 0 6px; font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
+
+    .subtitle { margin: 0; color: var(--text-dim); }
+
+    .subtitle a { color: var(--accent); text-decoration: none; }
+    .subtitle a:hover { text-decoration: underline; }
+
+    .layout { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 860px) { .layout { grid-template-columns: 1fr 1fr; } }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .card h2 { margin: 0 0 14px; font-size: 15px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    label { display: block; margin-bottom: 8px; font-weight: 500; }
+
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      padding: 12px;
+      resize: vertical;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+    }
+
+    textarea:focus-visible, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .hint { margin: 8px 0 16px; font-size: 13px; color: var(--text-dim); }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+
+    .primary {
+      width: 100%;
+      padding: 11px 16px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .samples { margin-top: 20px; }
+    .samples p { margin: 0 0 10px; font-size: 13px; color: var(--text-dim); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .chip {
+      padding: 6px 11px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface-2);
+      border-color: var(--border);
+    }
+
+    .chip:hover { border-color: var(--accent); }
+
+    .placeholder { color: var(--text-dim); }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 11px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 999px;
+      border: 1px solid;
+    }
+
+    .badge.ok { color: var(--ok); border-color: var(--ok); background: rgba(63, 185, 80, 0.1); }
+    .badge.warn { color: var(--warn); border-color: var(--warn); background: rgba(210, 153, 34, 0.1); }
+    .badge.error { color: var(--error); border-color: var(--error); background: rgba(248, 81, 73, 0.1); }
+    .badge.pending { color: var(--accent); border-color: var(--accent); background: rgba(91, 140, 255, 0.1); }
+
+    dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0 0 16px; }
+    dt { color: var(--text-dim); }
+    dd { margin: 0; }
+
+    .answer {
+      padding: 14px;
+      margin-bottom: 16px;
+      white-space: pre-wrap;
+      background: var(--surface-2);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+    }
+
+    .tools { list-style: none; padding: 0; margin: 0 0 16px; display: flex; flex-direction: column; gap: 6px; }
+    .tools li { font-size: 14px; }
+    .tools code { padding: 2px 6px; background: var(--surface-2); border-radius: 4px; font-size: 13px; }
+    .tool-ok { color: var(--ok); }
+    .tool-fail { color: var(--error); }
+
+    .meta { padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-dim); }
+
+    .error-box {
+      padding: 14px;
+      color: var(--error);
+      background: rgba(248, 81, 73, 0.08);
+      border: 1px solid var(--error);
+      border-radius: 8px;
+    }
+
+    details { margin-top: 16px; }
+    summary { cursor: pointer; font-size: 13px; color: var(--text-dim); }
+    pre { overflow-x: auto; padding: 12px; margin: 10px 0 0; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+
+    .spinner {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      margin-right: 7px;
+      vertical-align: -2px;
+      border: 2px solid rgba(91, 140, 255, 0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Обработка тикетов поддержки</h1>
+      <p class="subtitle">
+        Обращение попадает в очередь, воркер классифицирует его, принимает решение
+        о маршрутизации и пытается решить автоматически. Схема API — в
+        <a href="/docs">Swagger</a>.
+      </p>
+    </header>
+
+    <div class="layout">
+      <form class="card" id="form">
+        <h2>Обращение</h2>
+        <label for="text">Текст обращения</label>
+        <textarea id="text" name="text" required maxlength="8000"
+          placeholder="Например: не могу войти в аккаунт, забыл пароль"></textarea>
+        <p class="hint">Отправка — Ctrl + Enter</p>
+        <button type="submit" class="primary" id="submit">Отправить</button>
+
+        <div class="samples">
+          <p>Готовые примеры для разных сценариев:</p>
+          <div class="chips" id="samples"></div>
+        </div>
+      </form>
+
+      <section class="card" aria-labelledby="result-title">
+        <h2 id="result-title">Результат</h2>
+        <div id="result" aria-live="polite" aria-busy="false">
+          <p class="placeholder">Отправьте обращение, чтобы увидеть решение системы.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const SAMPLES = [
+      { label: 'Сброс пароля', text: 'Не могу войти в аккаунт, забыл пароль. Моя почта ivan@example.com' },
+      { label: 'Статус заказа', text: 'Где мой заказ ORD-123456? Когда его доставят?' },
+      { label: 'Неизвестный заказ', text: 'Заказ ORD-000000 до сих пор не пришёл, проверьте статус' },
+      { label: 'Просьба оператора', text: 'Хочу поговорить с оператором по своему вопросу' },
+      { label: 'Возврат средств', text: 'Верните деньги за последний заказ, товар не подошёл' },
+      { label: 'Жалоба', text: 'Это возмутительно, качество товара отвратительное' },
+      { label: 'Общий вопрос', text: 'У меня медленно грузится ваш сайт, что делать?' },
+    ];
+
+    const STATUS = {
+      auto_resolved: { text: 'Решено автоматически', kind: 'ok' },
+      escalated: { text: 'Передано оператору', kind: 'warn' },
+      escalated_tool_failure: { text: 'Ошибка инструмента, нужен оператор', kind: 'error' },
+      escalated_after_attempt: { text: 'Автоматически не решено', kind: 'warn' },
+      requires_manual_handling: { text: 'Требуется ручная обработка', kind: 'error' },
+    };
+
+    const REASONS = {
+      low_confidence: 'низкая уверенность классификатора',
+      sensitive_topic: 'чувствительная тема',
+      negative_sentiment: 'негативная тональность',
+      explicit_request: 'клиент попросил человека',
+      business_rule: 'бизнес-правило',
+      tool_failure: 'инструмент вернул ошибку',
+      unresolved: 'действие не выполнено',
+      timeout: 'превышен бюджет времени',
+      llm_unavailable: 'модель недоступна',
+      internal_error: 'внутренняя ошибка',
+    };
+
+    const INTENTS = {
+      password_reset: 'сброс пароля',
+      order_status: 'статус заказа',
+      address_change: 'изменение адреса',
+      refund_request: 'возврат средств',
+      complaint: 'жалоба',
+      general_inquiry: 'общий вопрос',
+    };
+
+    const QUEUES = {
+      auto_resolve_queue: 'автоматическая обработка',
+      general_support_queue: 'общая поддержка',
+      manual_review_queue: 'ручная проверка',
+      escalation_queue: 'эскалация',
+      refunds_queue: 'возвраты',
+    };
+
+    const PRIORITIES = { low: 'низкий', medium: 'средний', high: 'высокий', critical: 'критический' };
+
+    const POLL_INTERVAL_MS = 1000;
+    const POLL_TIMEOUT_MS = 120000;
+
+    const form = document.getElementById('form');
+    const textarea = document.getElementById('text');
+    const submit = document.getElementById('submit');
+    const result = document.getElementById('result');
+
+    const escapeHtml = (value) =>
+      String(value).replace(/[&<>"']/g, (char) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+
+    const label = (dictionary, key) => dictionary[key] || key || '—';
+
+    function renderSamples() {
+      const container = document.getElementById('samples');
+      SAMPLES.forEach((sample) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'chip';
+        button.textContent = sample.label;
+        button.addEventListener('click', () => {
+          textarea.value = sample.text;
+          textarea.focus();
+        });
+        container.appendChild(button);
+      });
+    }
+
+    function showPending(seconds) {
+      result.innerHTML = `
+        <span class="badge pending"><span class="spinner"></span>В обработке</span>
+        <p class="placeholder">Воркер обрабатывает обращение, прошло ${seconds}&nbsp;с.</p>`;
+    }
+
+    function showError(message) {
+      result.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
+    }
+
+    function renderTools(calls) {
+      if (!calls || calls.length === 0) {
+        return '<p class="placeholder">Инструменты не вызывались.</p>';
+      }
+      const items = calls.map((call) => {
+        const mark = call.success ? '<span class="tool-ok">успех</span>' : '<span class="tool-fail">ошибка</span>';
+        const replay = call.idempotent_replay ? ' <em>(повтор подавлен)</em>' : '';
+        const error = call.error ? ` — ${escapeHtml(call.error)}` : '';
+        return `<li><code>${escapeHtml(call.tool)}</code> ${mark}${replay}${error}</li>`;
+      });
+      return `<ul class="tools">${items.join('')}</ul>`;
+    }
+
+    function renderResult(data) {
+      const status = STATUS[data.status] || { text: data.status, kind: 'warn' };
+      const confidence = data.confidence === null || data.confidence === undefined
+        ? '—'
+        : data.confidence.toFixed(2);
+
+      const rows = [
+        ['Намерение', label(INTENTS, data.intent)],
+        ['Уверенность', confidence],
+        ['Приоритет', label(PRIORITIES, data.priority)],
+        ['Очередь', label(QUEUES, data.assigned_to)],
+      ];
+      if (data.reason) rows.push(['Причина', label(REASONS, data.reason)]);
+      if (data.reasoning) rows.push(['Обоснование', data.reasoning]);
+      if (data.degraded) rows.push(['Режим', 'деградация — часть шагов не выполнена']);
+      if (data.resolution && data.resolution.error) rows.push(['Ошибка', data.resolution.error]);
+
+      const definitions = rows
+        .map(([term, value]) => `<dt>${term}</dt><dd>${escapeHtml(value)}</dd>`)
+        .join('');
+
+      const answer = data.resolution && data.resolution.response
+        ? `<div class="answer">${escapeHtml(data.resolution.response)}</div>`
+        : '';
+
+      const tools = data.resolution ? renderTools(data.resolution.tool_calls) : '';
+
+      const cost = data.cost ? `${data.cost.total.toFixed(2)}\u00a0₽` : '—';
+      const elapsed = data.handle_time_seconds === null || data.handle_time_seconds === undefined
+        ? '—'
+        : `${data.handle_time_seconds.toFixed(2)}\u00a0с`;
+
+      result.innerHTML = `
+        <span class="badge ${status.kind}">${escapeHtml(status.text)}</span>
+        <dl>${definitions}</dl>
+        ${answer}
+        ${tools}
+        <p class="meta">Время обработки ${elapsed} · стоимость ${cost} · тикет
+          <code>${escapeHtml(data.ticket_id)}</code></p>
+        <details>
+          <summary>Полный ответ API</summary>
+          <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+        </details>`;
+    }
+
+    async function createTicket(text) {
+      const response = await fetch('/api/v1/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (response.status === 429) {
+        throw new Error('Превышен лимит запросов, попробуйте через минуту.');
+      }
+      if (response.status === 503) {
+        throw new Error('Очередь обработки недоступна: проверьте, что запущены Redis и воркер.');
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail ? JSON.stringify(body.detail) : `Ошибка API: ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function pollResult(pollUrl, startedAt) {
+      while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
+        const response = await fetch(pollUrl);
+
+        if (response.status === 200) {
+          const body = await response.json();
+          if (body.ready && body.result) return body.result;
+        } else if (response.status !== 202 && response.status !== 404) {
+          // 404 означает, что воркер ещё не сохранил задачу, — продолжаем опрос.
+          throw new Error(`Не удалось получить результат: ${response.status}`);
+        }
+
+        showPending(Math.round((Date.now() - startedAt) / 1000));
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+      throw new Error('Результат не получен за две минуты. Посмотрите логи воркера.');
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const text = textarea.value.trim();
+      if (!text) return;
+
+      submit.disabled = true;
+      submit.textContent = 'Обработка…';
+      result.setAttribute('aria-busy', 'true');
+      const startedAt = Date.now();
+      showPending(0);
+
+      try {
+        const accepted = await createTicket(text);
+        const data = await pollResult(accepted.poll_url, startedAt);
+        renderResult(data);
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        submit.disabled = false;
+        submit.textContent = 'Отправить';
+        result.setAttribute('aria-busy', 'false');
+      }
+    });
+
+    textarea.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        form.requestSubmit();
+      }
+    });
+
+    renderSamples();
+  </script>
+</body>
+</html>

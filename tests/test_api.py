@@ -121,6 +121,14 @@ def test_metrics_endpoint_exposes_prometheus_format(client: TestClient) -> None:
     assert "support_tickets_received_total" in response.text
 
 
+def test_demo_page_is_served(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Обработка тикетов поддержки" in response.text
+
+
 def test_request_id_header_is_returned(client: TestClient) -> None:
     response = client.get("/health/live", headers={"X-Request-ID": "req-42"})
 

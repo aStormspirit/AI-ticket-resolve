@@ -6,10 +6,13 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.deps import create_queue_pool
@@ -20,6 +23,8 @@ from observability.logging import configure_logging, ticket_context
 from observability.metrics import REGISTRY
 
 logger = logging.getLogger(__name__)
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 @asynccontextmanager
@@ -76,8 +81,13 @@ def create_app() -> FastAPI:
     async def metrics() -> Response:
         return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
+    @app.get("/", include_in_schema=False)
+    async def demo_page() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
+
     app.include_router(health.router)
     app.include_router(tickets.router)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
 
 
