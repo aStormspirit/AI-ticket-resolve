@@ -1,53 +1,119 @@
+"""Калибровка порога уверенности на размеченной выборке.
+
+Порог подбирается так, чтобы автоматически обрабатывались только те обращения,
+где классификатор действительно точен. Результат подставляется в
+CONFIDENCE_THRESHOLD (переменная окружения), а не правится в коде.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from dataclasses import dataclass
+
 from sklearn.metrics import precision_recall_curve
 
 from .classifier import classify_intent
+from .contracts import Intent
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_MIN_PRECISION = 0.9
+CONSERVATIVE_THRESHOLD = 0.95
 
 
-def calibrate_confidence_threshold(labeled_tickets: list[tuple[str, str]]) -> float:
-    """
-    Находит оптимальный порог уверенности на размеченных данных.
-    
+@dataclass
+class CalibrationReport:
+    threshold: float
+    precision: float
+    recall: float
+    samples: int
+    accuracy: float
+
+
+async def calibrate_confidence_threshold(
+    labeled_tickets: list[tuple[str, str]],
+    min_precision: float = DEFAULT_MIN_PRECISION,
+    concurrency: int = 4,
+) -> CalibrationReport:
+    """Подбирает порог с максимальным recall при заданной precision.
+
     Args:
-        labeled_tickets: список пар (текст тикета, истинное намерение)
-    
-    Returns:
-        Оптимальный порог уверенности для автоматической обработки
+        labeled_tickets: пары (текст тикета, истинное намерение)
+        min_precision: минимально допустимая точность автообработки
+        concurrency: количество параллельных обращений к модели
     """
-    predictions = []
-    ground_truth = []
-    
-    for ticket_text, true_intent in labeled_tickets:
-        intent = classify_intent(ticket_text)
-        predictions.append({
-            'confidence': intent.confidence,
-            'correct': intent.intent == true_intent
-        })
-        ground_truth.append(intent.intent == true_intent)
-    
-    confidences = [p['confidence'] for p in predictions]
-    
-    # Строим precision-recall кривую
-    precision, recall, thresholds = precision_recall_curve(
-        ground_truth,
-        confidences
-    )
-    
-    # Находим порог с балансом precision/recall
-    # Например, минимум 90% precision для автообработки
-    min_precision = 0.9
-    valid_thresholds = thresholds[precision[:-1] >= min_precision]
-    
-    if len(valid_thresholds) == 0:
-        return 0.95  # Консервативное значение
-    
-    # Выбираем порог с максимальным recall при заданной precision
-    optimal_threshold = valid_thresholds[0]
-    
-    print(f"Оптимальный порог: {optimal_threshold:.2f}")
-    print(f"При этом пороге precision={precision[0]:.2f}, recall={recall[0]:.2f}")
-    
-    return optimal_threshold
+    if not labeled_tickets:
+        raise ValueError("Размеченная выборка пуста")
 
-# Использование:
-# optimal_threshold = calibrate_confidence_threshold(test_dataset)
-# PolicyEngine.CONFIDENCE_THRESHOLD = optimal_threshold
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def _classify(text: str, expected: str) -> tuple[float, bool]:
+        async with semaphore:
+            result = await classify_intent(text)
+        predicted = Intent.coerce(result.classification.intent)
+        return result.classification.confidence, predicted is Intent.coerce(expected)
+
+    outcomes = await asyncio.gather(
+        *(_classify(text, expected) for text, expected in labeled_tickets)
+    )
+
+    confidences = [confidence for confidence, _ in outcomes]
+    correctness = [is_correct for _, is_correct in outcomes]
+    accuracy = sum(correctness) / len(correctness)
+
+    if len(set(correctness)) < 2:
+        logger.warning(
+            "В выборке только один класс исходов, кривая precision-recall не строится"
+        )
+        return CalibrationReport(
+            threshold=CONSERVATIVE_THRESHOLD,
+            precision=accuracy,
+            recall=1.0 if all(correctness) else 0.0,
+            samples=len(labeled_tickets),
+            accuracy=accuracy,
+        )
+
+    precision, recall, thresholds = precision_recall_curve(correctness, confidences)
+
+    # precision/recall длиннее thresholds на один элемент — последний соответствует
+    # вырожденной точке (recall=0), поэтому срезаем его.
+    candidates = [
+        (thresholds[index], precision[index], recall[index])
+        for index in range(len(thresholds))
+        if precision[index] >= min_precision
+    ]
+
+    if not candidates:
+        logger.warning(
+            "Ни один порог не даёт precision >= %.2f, берём консервативный %.2f",
+            min_precision,
+            CONSERVATIVE_THRESHOLD,
+        )
+        return CalibrationReport(
+            threshold=CONSERVATIVE_THRESHOLD,
+            precision=0.0,
+            recall=0.0,
+            samples=len(labeled_tickets),
+            accuracy=accuracy,
+        )
+
+    optimal_threshold, optimal_precision, optimal_recall = max(
+        candidates, key=lambda item: item[2]
+    )
+
+    logger.info(
+        "Оптимальный порог %.2f: precision=%.2f recall=%.2f на %d примерах",
+        optimal_threshold,
+        optimal_precision,
+        optimal_recall,
+        len(labeled_tickets),
+    )
+
+    return CalibrationReport(
+        threshold=float(optimal_threshold),
+        precision=float(optimal_precision),
+        recall=float(optimal_recall),
+        samples=len(labeled_tickets),
+        accuracy=accuracy,
+    )
